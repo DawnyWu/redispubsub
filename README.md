@@ -9,7 +9,7 @@ You can start app by type ```DEBUG=redispubsub node bin/www```
 
 
 One of the most common things people build on Node.js are real-time apps like chat apps, social networking apps etc. There are plenty of examples showing how to build such apps on the web, but it’s hard to find an example that shows how to deal with real-time apps that are scaled and are running with multiple instances. You will need to deal with issues like sticky sessions, scale-up/down, instance crash/restart, and more for apps that will scale. This post will show you how to manage these scaling requirements.
-
+人们最爱用Node.js做的一件事就是制作实时应用，比如聊天应用，社交应用等。网上有很多例子交给你如何写这样的应用，可是却很难找到例子向你展示如何将实时应用拓展运行在多个实例上。你将会遇到很多问题，比如如何处理sticky sessions，
 ## Chat App
 The main objective of this project is to build a simple chat app and focus on tackling such issues. Specifically, we will be building a simple Express, Socket.io and Redis-based Chat app that should meet the following objectives:
 这个项目的目标是完成一个简单的聊天应用。明确的说，我们要用Express, Socket.io 和 Redis为基础建立一个应用，并且实现下列目标：
