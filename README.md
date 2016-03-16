@@ -15,10 +15,15 @@ The main objective of this project is to build a simple chat app and focus on ta
 
 1. Chat server should run with multiple instances.
 2. The user login should be saved in a session.
+2. 用户的登录状态应该保存在session中
     * If the user refreshes the browser, he should be logged back in.
+    * 如果用户刷新页面，也依然会是登陆状态
     * Socket.io should get user info from the session before sending chat messages. 
+    * Socket.io应当可以在发送聊天消息前从session中获得用户信息
     * Socket.io should only connect if user is already logged in.
+    * Socket.io 应当仅在用户登陆的情况下连接用户
 3. Reconnect: While the user is chatting, if the server-instance to which he is connected goes down / is restarted / scaled-down, the user should be reconnected to an available instance and recover the session.
+3. 重新连接：在用户聊天时，如果聊天服务器宕机/重启/ scaled-down, 用户应当可以重新连接上一台可用的聊天服务器
 
 ***Chat app's Login page:***
 
@@ -49,19 +54,23 @@ When you run such a server in a cloud that has a load-balancer/reverse proxy, ro
 
 One of the constraints Socket.io, SockJS and similar libraries have is that they need to continuously talk to the ***same instance*** of the server. They work perfectly well when there is only 1 instance of the server.
 
+Socket.io, SockJS 和其它类似的库共有的一个缺陷，就是他们只能和一个server实例交谈。在只有一个server实例的情况下，它们工作的很好。
+
 <p align='center'>
 <img src="https://github.com/rajaraodv/redispubsub/raw/master/pics/socketio1Instance.png" height="300px" width="450px" />
 </p>
 
 When you scale your app in a cloud environment, the load balancer (Nginx in the case of Cloud Foundry) will take over, and the requests will be sent to different instances causing Socket.io to break.
-
+当你想在云端增加server实例的时候，负载均衡器（Cloud Foundry的情况下是Nginx）会接管请求，请求会被分发到不同的server实例上，从而导致Socket.io崩溃。
 <p align='center'>
 <img src="https://github.com/rajaraodv/redispubsub/raw/master/pics/socketioBreaks.png" height="300px" width="450px" />
 </p>
 
 To help in such situations, load balancers have a feature called 'sticky sessions' aka 'session affinity'. The main idea is that if this property is set, then after the first load-balanced request, all the following requests will go to the same server instance.
+想要避免这种情况，负载均衡器有一个特性叫做'sticky sessions'。如果你设置了这个功能，那么在负载均衡器处理了第一条请求后，所有后续的请求都会去向同一个server实例。
 
 In Cloud Foundry, cookie-based sticky sessions are enabled for apps that set the cookie **jsessionid**. 
+如果你使用Cloud Foundry, 想要给应用设置cookie-based sticky sessions的话，需要设置 jsessionid cookie
 
 Note: **jsessionid** is the cookie name commonly used to track sessions in Java/Spring applications. Cloud Foundry is simply adopting that as the sticky session cookie for all frameworks.
 
@@ -84,14 +93,20 @@ So, all the apps need to do is to set a cookie with the name **jsessionid** to m
 </p>
 
 In the above diagram, when you open the app, 
+过程如上图，当你打开应用的时候，
 
 1. Express sets a session cookie with name **jsessionid**. 
+1. Express 设置了名为jsessionid的session cookie
 2. When socket.io connects, it uses that same cookie and hits the load balancer
+2. 当socket.io连接的时候，它会使用相同的cookie访问负载均衡器
 3. The load balancer always routes it to the same server that the cookie was set in.
+3. 负载均衡器
 
 ## Sending session info to Socket.io 
 
 Let's imagine that the user is logging in via Twitter or Facebook, or we implement a regular login screen. We are storing this information in a session after the user has logged in.
+
+我们想象 用户通过Twitter, Facebook或者我们自己实现的逻辑登陆了，我们在用户登陆后将这些信息保存在session中
 
 ```javascript
 
@@ -104,8 +119,10 @@ app.post('/login', function (req, res) {
 ```
 
 Once the user has logged in, we connect via socket.io to allow chatting. However, socket.io doesn't know who the user is and whether he is actually logged in before sending chat messages to others.
+一旦用户登陆了，我们要连接socket.io使得用户可以聊天。但是，socket.io并不知道用户是谁，也不知道他是否登陆了
 
 That's where the `socket.io-express-session` library comes in. It's a very simple library that's a wrapper around socket.io. All it does is grab session information during the handshake and then pass it to socket.io's `connection` function. You can access session via `socket.handshake.session` w/in connection listener.
+这里我们要用到 `socket.io-express-session`这个库，它在socket.io之上添加了一些功能。它在握手阶段将session信息传入到socket.io的`connection`方法中。于是我们便可以通过 `socket.handshake.session`方法来获得session信息了。
 
 ```javascript
 //instead of
@@ -181,7 +198,9 @@ With the above configuration, sessions will now be stored in Redis. Also, if one
 ## Socket.io as pub-sub server
 
 So far with the above setup our sessions are taken care of - but if we are using socket.io's default pub-sub mechanism, it will work only for 1 sever instance.
+通过上边的配置，session就处理好了。 可是还有其他的问题，我们现在如果使用socket.io默认的pub-sub（发布-接收）机制,他只能运行在一个server实例上。
 i.e. if user1 and user2 are on server instance #1, they can both chat with each other. If they are on different server instances they cannot do so.
+举个例子：如果user1和user2都在同一个server#1上，他们可以互相交谈。如果他们在不同的服务器上，他们是不能交谈的。
 
 ```javascript
 sessionSockets.on('connection', function (err, socket, session) {
@@ -243,11 +262,13 @@ The app's architecture will now look like this:
 ## Handling server scale-down / crashes / restarts
 
 Our app will work fine as long as all the server instances are running.  What happens if the server is restarted or scaled down or one of the instances crash? How do we handle that?
+如果所有的server实例都运行的很好，那么我们的聊天应用就不会有问题。但是一旦有重启了或者崩溃了，我们该如何处理呢？
 
 Let's first understand what happens in that situation.
+我们首先来看一下在这种情况下会发生什么。
 
 The code below simply connects a browser to server and listens to various socket.io events.
-
+下边的代码
 ```javascript
  /*
   Connect to socket.io on the server (***BEFORE FIX***).
@@ -282,26 +303,30 @@ The code below simply connects a browser to server and listens to various socket
 ```
 
 While the user is chatting, if we restart the app **on localhost or on a single host**, socket.io attempts to reconnect multiple times (based on configuration) to see if it can connect. If the server comes up with in that time, it will reconnect. So we see the below logs:
-
+当应用跑在locaohost或者单一的服务器上时，我们重新启动应用，socket.io会尝试重新连接（次数由配置决定）。如果服务器恢复正常，他会重新连接。我们会看到如下的log信息
 <p align='center'>
 <img src="https://github.com/rajaraodv/redispubsub/raw/master/pics/reconnectOn1server.png" height="300px" width="600px" />
 </p>
 
 If the user is chatting on the same app that's running ***on Cloud Foundry AND with multiple instances***, and if we restart the server (say using `vmc restart redispubsub`) then we'll see the following log messages:
+当应用跑在云平台如Cloud Foundry并且有好几个server实例的时候，如果我们重新启动服务器，我们会看到如下的log信息
 <p align='center'>
 <img src="https://github.com/rajaraodv/redispubsub/raw/master/pics/reconnectOnMultiServer.png" height="400px" width="600px" />
 </p>
 
 You can see that in the above logs, after the server comes back up, socket.io client (running in the browser) isn't able to connect to socket.io server (running on Node.js in the server). 
+从上边的log中我们可以看到，经过服务器重启，socket.io client（跑在浏览器中）不能够连接到socket.io server(跑在服务器上)
 
 This is because, once the server is restarted on Cloud Foundry, ***instances are brought up as if they are brand-new server instances with different IP addresses and different ports and so `jsessionid` is no-longer valid***. That in turn causes the load balancer to *load balance* socket.io's reconnection requests (i.e. they are sent to different server instances) causing the socket.io server not to properly handshake and consequently to throw `client not handshaken` errors!
+这是因为一旦Cloud Foundry上边的服务器重启，这些服务器实例会像新的一样，拥有与之前不同的IP地址，与之前不同的端口地址，于是jsessionid就失效了。导致了负载均衡器对sock.io的重新连接请求做负载均衡（把它们分配给不同的服务器实例），socket.io不能正确地握手，结果报出`client not handshaken`错误!
+
 
 ### OK, let's fix that reconnection issue
 
 First, we will disable socket.io's default "reconnect" feature, and then implement our own reconnection feature. 
-
+首先，我们要关掉socket.io默认的重新连接功能，之后我们要实现我们自己的重新连接功能。
 In our custom reconnection function, when the server goes down, we'll make a dummy HTTP GET call to index.html every 4-5 seconds. If the call succeeds, we know that the (Express) server has already set ***jsessionid*** in the response. So, then we'll call socket.io's reconnect function. This time because jsessionid is set, socket.io's handshake will succeed and the user will get to continue chatting happily.
-	      
+在我们自己实现的重新连接功能中，当服务器挂掉时，我们会每4-5秒发送HTTP GET请求。如果请求成功，我们知道(Express)服务器已经在response中设置好了***jsessionid***，于是，我们就可以调用socket.io的重新连接方法，这次由于jsessionid已经设置了，socket.io的握手将会成功，用户终于可以继续开心点聊天了。
 ```javascript
 
 /*
