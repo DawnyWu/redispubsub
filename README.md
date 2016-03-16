@@ -12,8 +12,10 @@ One of the most common things people build on Node.js are real-time apps like ch
 
 ## Chat App
 The main objective of this project is to build a simple chat app and focus on tackling such issues. Specifically, we will be building a simple Express, Socket.io and Redis-based Chat app that should meet the following objectives:
+这个项目的目标是完成一个简单的聊天应用。明确的说，我们要用Express, Socket.io 和 Redis为基础建立一个应用，并且实现下列目标：
 
 1. Chat server should run with multiple instances.
+1. 聊天服务器将会运行多个实例
 2. The user login should be saved in a session.
 2. 用户的登录状态应该保存在session中
     * If the user refreshes the browser, he should be logged back in.
@@ -166,11 +168,12 @@ io.on('connection', function (socket) {
 ## Redis as a session store
 
 So far so good... but Express stores these sessions in MemoryStore (by default). MemoryStore is simply a Javascript object - it will be in memory as long as the server is up. If the server goes down, all the session information of all users will be lost! 
+到目前为止还不错。。。但是Express将session存到MemoryStore（默认）中。MemoryStore只是一个简单的Javascript对象 - 它只是存储在内存中。如果服务器关闭，所有的session信息将会丢失。
 
 We need a place to store this outside of our server, but it should also be very fast to retrieve. That's where Redis as a session store come in.
-
+我们需要在服务器外的一个地方存储session数据，并且能够很快的读取。这时候我们就需要Redis作为session store来发挥作用了。
 Let's configure our app to use Redis as a session store as below.
-
+下列代码将Redis设置为我们app的session store
 ```javascript
 /*
  Use Redis for Session Store. Redis will keep all Express sessions in it.
@@ -262,7 +265,7 @@ The app's architecture will now look like this:
 ## Handling server scale-down / crashes / restarts
 
 Our app will work fine as long as all the server instances are running.  What happens if the server is restarted or scaled down or one of the instances crash? How do we handle that?
-如果所有的server实例都运行的很好，那么我们的聊天应用就不会有问题。但是一旦有重启了或者崩溃了，我们该如何处理呢？
+如果所有的server实例都运行的很好，那么我们的聊天应用就不会有问题。但是一旦有server重启了或者崩溃了，我们该如何处理呢？
 
 Let's first understand what happens in that situation.
 我们首先来看一下在这种情况下会发生什么。
@@ -326,7 +329,7 @@ This is because, once the server is restarted on Cloud Foundry, ***instances are
 First, we will disable socket.io's default "reconnect" feature, and then implement our own reconnection feature. 
 首先，我们要关掉socket.io默认的重新连接功能，之后我们要实现我们自己的重新连接功能。
 In our custom reconnection function, when the server goes down, we'll make a dummy HTTP GET call to index.html every 4-5 seconds. If the call succeeds, we know that the (Express) server has already set ***jsessionid*** in the response. So, then we'll call socket.io's reconnect function. This time because jsessionid is set, socket.io's handshake will succeed and the user will get to continue chatting happily.
-在我们自己实现的重新连接功能中，当服务器挂掉时，我们会每4-5秒发送HTTP GET请求。如果请求成功，我们知道(Express)服务器已经在response中设置好了***jsessionid***，于是，我们就可以调用socket.io的重新连接方法，这次由于jsessionid已经设置了，socket.io的握手将会成功，用户终于可以继续开心点聊天了。
+在我们自己实现的重新连接功能中，当服务器挂掉时，我们会每4-5秒发送HTTP GET请求。如果请求成功，我们知道(Express)服务器已经在response中设置好了***jsessionid***，于是，我们就可以调用socket.io的reconnect法，这次由于jsessionid已经设置了，socket.io的握手将会成功，用户终于可以继续开心点聊天了。
 ```javascript
 
 /*
@@ -379,7 +382,8 @@ var tryReconnect = function () {
 ```
 
 In addition, since the jsessionid is invalidated by the load balancer, we can't create a session with the same jsessionid or else the sticky session will be ignored by the load balancer. So on the server, when the dummy HTTP request comes in, we will ***regenerate*** the session to remove the old session and sessionid and ensure everything is fresh before we serve the response.
-
+另外，由于jsessionid已经失效，我们不能够由jsessionid生成一个session,否则会被负载均衡器忽视掉。所以在服务器端，当一个http请求访问的时候，我们将会重新生成session，删除掉旧的session和sessionid,确保在处理响应前，我们的一切是全新的。
+  
 ```javascript
 //Instead of..
 exports.index = function (req, res) {
@@ -399,95 +403,10 @@ exports.index = function (req, res) {
 };
 
 
-```
-
-## Running / Testing it on Cloud Foundry
-
-* Clone the app to `redispubsub` folder
-* `cd redispubsub`
-* `npm install` and follow the below instructions to push the app to Cloud Foundry
-
-```
-
-[~/success/git/redispubsub]
-> vmc push redispubsub
-Instances> 4       <----- Run 4 instances of the server
-
-1: node
-2: other
-Framework> node
-
-1: node
-2: node06
-3: node08
-4: other
-Runtime> 3  <---- Choose Node.js 0.8v
-
-1: 64M
-2: 128M
-3: 256M
-4: 512M
-Memory Limit> 64M
-
-Creating redispubsub... OK
-
-1: redispubsub.cloudfoundry.com
-2: none
-URL> redispubsub.cloudfoundry.com  <--- URL of the app (choose something unique)
-
-Updating redispubsub... OK
-
-Create services for application?> y
-
-1: blob 0.51
-2: mongodb 2.0
-3: mysql 5.1
-4: postgresql 9.0
-5: rabbitmq 2.4
-6: redis 2.6
-7: redis 2.4
-8: redis 2.2
-What kind?> 6 <----- Select & Add Redis v2.6 service
-
-Name?> redis-e9771 <-- This is just a random name for Redis service
-
-Creating service redis-e9771... OK
-Binding redis-e9771 to redispubsub... OK
-Create another service?> n
-
-Bind other services to application?> n
-
-Save configuration?> n
-
-Uploading redispubsub... OK
-Starting redispubsub... OK
-Checking redispubsub... OK
-
-```
-
-* Once the server is up, open up multiple browsers and go to `<appname>.cloudfoundry.com`
-* Start chatting
-
-#### Test 1
-
-* Refresh the browser
-* You should automatically be logged in
 
 
-#### Test 2
-
-* Open up JS debugger (in Chrome, do `cmd + alt +j`)
-* Restart the server by running `vmc restart <appname>`
-* Once the server restarts, Socket.io should automatically reconnect
-* You should be able to chat after the reconnection
 
 
-## General Notes
-* Github location: <a href='https://github.com/rajaraodv/redispubsub' target='_blank'>https://github.com/rajaraodv/redispubsub</a>
-* If you don't have a Cloud Foundry account, sign up for it <a href='https://my.cloudfoundry.com/signup' target='_blank'>here</a>
-* Check out Cloud Foundry getting started <a href='http://docs.cloudfoundry.com/getting-started.html' target='_blank'>here</a> and install the `vmc` Ruby command line tool to push apps.
-
-* To install the ***latest alpha or beta*** `vmc` tool run: `sudo gem install vmc --pre`
 
 
 #### Credits
